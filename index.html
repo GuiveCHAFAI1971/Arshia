@@ -72,7 +72,7 @@
       <input type="radio" name="mode" value="auto"> Automated
     </label>
     <label id="delayLabel" style="display: none;">
-      Pause (ms): <input type="number" id="delay" value="20" min="20">
+      Pause (µs): <input type="number" id="delay" value="100" min="1">
     </label>
   </div>
   <div id="dice">
@@ -81,10 +81,10 @@
   </div>
   <p id="counter">Throws: 0</p>
   <p id="average">Average Throws: N/A</p>
-  <p id="message"></p>
+  <p id="message">Total Number of Games: 0</p>
   <button id="throwDice">Throw Dice</button>
   <canvas id="graph" width="400" height="560"></canvas>
-  <p id="version">Version: 1.4</p>
+  <p id="version">Version: 1.5</p>
 
   <script>
     const diceEl = document.getElementById('dice').children[0];
@@ -103,6 +103,7 @@
     let throwCounts = {};
     let isAutoMode = false;
     let autoThrowInterval;
+    let totalGames = 0;
 
     // Graph initialization
     const chart = new Chart(graphCanvas, {
@@ -166,14 +167,15 @@
 
     // End the game
     function endGame() {
-      messageEl.textContent = `Game over! It took ${throws} throws.`;
+      totalGames++;
+      messageEl.textContent = `Total Number of Games: ${totalGames}`;
       results.push(throws);
 
       throwCounts[throws] = (throwCounts[throws] || 0) + 1;
       updateGraph();
       updateAverage();
       if (isAutoMode) {
-        setTimeout(resetGame, 500); // Pause for half a second before resetting
+        setTimeout(resetGame, 100); // Pause for 100 microseconds before resetting
       } else {
         resetGame();
       }
@@ -208,9 +210,9 @@
 
     // Handle automated mode
     function startAutoMode() {
-      const delay = parseInt(delayInput.value, 10) || 20;
+      const delay = parseInt(delayInput.value, 10) || 100;
       stopAutoMode(); // Ensure any existing interval is cleared
-      autoThrowInterval = setInterval(throwDice, delay);
+      autoThrowInterval = setInterval(throwDice, delay / 1000); // Convert microseconds to milliseconds
     }
 
     function stopAutoMode() {
