@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dice Game</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    #dice {
+      font-size: 3rem;
+      margin: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 4rem; /* Fixed height to prevent flickering */
+    }
+    #lastThrows {
+      font-size: 1.5rem;
+      margin-left: 10px;
+      color: blue;
+      height: 2rem; /* Reserve space to avoid shifting */
+    }
+    #counter {
+      font-size: 1.5rem;
+      margin: 20px;
+      height: 2rem; /* Reserve space to avoid shifting */
+    }
+    #message {
+      font-size: 1.2rem;
+      color: green;
+      margin: 20px;
+      height: 2rem; /* Fixed height to prevent flickering */
+    }
+    #average {
+      font-size: 1.2rem;
+      margin: 10px;
+      color: purple;
+      height: 2rem; /* Reserve space for stability */
+    }
+    #controls {
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    canvas {
+      max-width: 600px;
+      margin: 20px auto;
+      height: 560px !important; /* Reduced height by 30% */
+    }
+    #version {
+      font-size: 0.8rem;
+      color: gray;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dice Game</h1>
+  <div id="controls">
+    <label>
+      <input type="radio" name="mode" value="manual" checked> Manual
+    </label>
+    <label>
+      <input type="radio" name="mode" value="auto"> Automated
+    </label>
+    <label id="delayLabel" style="display: none;">
+      Pause (ms): <input type="number" id="delay" value="20" min="20">
+    </label>
+  </div>
+  <div id="dice">
+    <span>🎲</span>
+    <span id="lastThrows"></span>
+  </div>
+  <p id="counter">Throws: 0</p>
+  <p id="average">Average Throws: N/A</p>
+  <p id="message"></p>
+  <button id="throwDice">Throw Dice</button>
+  <canvas id="graph" width="400" height="560"></canvas>
+  <p id="version">Version: 1.4</p>
+
+  <script>
+    const diceEl = document.getElementById('dice').children[0];
+    const lastThrowsEl = document.getElementById('lastThrows');
+    const counterEl = document.getElementById('counter');
+    const messageEl = document.getElementById('message');
+    const averageEl = document.getElementById('average');
+    const throwDiceButton = document.getElementById('throwDice');
+    const graphCanvas = document.getElementById('graph');
+    const delayInput = document.getElementById('delay');
+    const modeRadios = document.getElementsByName('mode');
+    const delayLabel = document.getElementById('delayLabel');
+    let diceHistory = [];
+    let throws = 0;
+    let results = [];
+    let throwCounts = {};
+    let isAutoMode = false;
+    let autoThrowInterval;
+
+    // Graph initialization
+    const chart = new Chart(graphCanvas, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Number of games',
+          data: [],
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Number of Throws'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Number of Games'
+            }
+          }
+        }
+      }
+    });
+
+    // Function to throw the dice
+    function throwDice() {
+      const diceValue = Math.floor(Math.random() * 6) + 1;
+      throws++;
+      diceEl.textContent = `🎲 ${diceValue}`;
+      counterEl.textContent = `Throws: ${throws}`;
+      diceHistory.push(diceValue);
+      updateLastThrows();
+
+      if (diceHistory.length >= 3) {
+        const len = diceHistory.length;
+        if (diceHistory[len - 1] === diceHistory[len - 2] && diceHistory[len - 2] === diceHistory[len - 3]) {
+          endGame();
+        }
+      }
+    }
+
+    // Update the display of the last throws
+    function updateLastThrows() {
+      const len = diceHistory.length;
+      const lastTwo = diceHistory.slice(-3, -1);
+      lastThrowsEl.innerHTML = lastTwo
+        .map(value => `<span>🎲 ${value}</span>`)
+        .reverse() // Reverse to ensure proper order: N-1 first, then N-2
+        .join(' ');
+    }
+
+    // End the game
+    function endGame() {
+      messageEl.textContent = `Game over! It took ${throws} throws.`;
+      results.push(throws);
+
+      throwCounts[throws] = (throwCounts[throws] || 0) + 1;
+      updateGraph();
+      updateAverage();
+      if (isAutoMode) {
+        setTimeout(resetGame, 500); // Pause for half a second before resetting
+      } else {
+        resetGame();
+      }
+    }
+
+    // Update the average throws
+    function updateAverage() {
+      if (results.length > 0) {
+        const totalThrows = results.reduce((sum, value) => sum + value, 0);
+        const average = (totalThrows / results.length).toFixed(2);
+        averageEl.textContent = `Average Throws: ${average}`;
+      }
+    }
+
+    // Reset the game
+    function resetGame() {
+      diceHistory = [];
+      throws = 0;
+      counterEl.textContent = `Throws: 0`;
+      lastThrowsEl.textContent = ``;
+      if (isAutoMode) {
+        startAutoMode();
+      }
+    }
+
+    // Update the graph
+    function updateGraph() {
+      chart.data.labels = Object.keys(throwCounts).sort((a, b) => a - b);
+      chart.data.datasets[0].data = chart.data.labels.map(label => throwCounts[label]);
+      chart.update();
+    }
+
+    // Handle automated mode
+    function startAutoMode() {
+      const delay = parseInt(delayInput.value, 10) || 20;
+      stopAutoMode(); // Ensure any existing interval is cleared
+      autoThrowInterval = setInterval(throwDice, delay);
+    }
+
+    function stopAutoMode() {
+      clearInterval(autoThrowInterval);
+      autoThrowInterval = null; // Ensure the reference is cleared
+    }
+
+    // Listen for mode changes
+    modeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        isAutoMode = radio.value === 'auto';
+        delayLabel.style.display = isAutoMode ? 'inline-block' : 'none';
+        throwDiceButton.style.display = isAutoMode ? 'none' : 'inline-block';
+
+        stopAutoMode(); // Always stop automatic mode when switching
+
+        if (isAutoMode) {
+          startAutoMode();
+        }
+      });
+    });
+
+    // Add event listener for manual throw
+    throwDiceButton.addEventListener('click', throwDice);
+  </script>
+</body>
+</html>
